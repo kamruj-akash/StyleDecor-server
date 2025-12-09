@@ -23,10 +23,19 @@ app.use(express.json());
 const uri = "mongodb://localhost:27017/";
 
 // iso time
-
 const createdAt = new Date().toISOString();
 const updatedAt = new Date().toISOString();
 const lastLoginAt = new Date().toISOString();
+
+// booking Id generate
+function generateSdId(digitLength = 5) {
+  const max = Math.pow(10, digitLength);
+  const num = Math.floor(Math.random() * max)
+    .toString()
+    .padStart(digitLength, "0");
+  return `SD-${num}`;
+}
+const bookingId = generateSdId();
 
 const jwtVerify = async (req, res, next) => {
   if (!req.headers.authorization) {
@@ -195,9 +204,15 @@ async function run() {
 
     // booking collection
     const bookingColl = styleDecorDB.collection("Bookings");
-    app.post("/new-booking", async (req, res) => {
+    app.post("/new-booking", jwtVerify, async (req, res) => {
       try {
-        const newBooking = { ...req.body, createdAt, updatedAt };
+        const newBooking = {
+          ...req.body,
+          createdAt,
+          updatedAt,
+          bookingId,
+          status: "Payment Pending",
+        };
         const booking = await bookingColl.insertOne(newBooking);
         res.send(booking);
       } catch (error) {
@@ -207,10 +222,17 @@ async function run() {
     });
     app.get("/bookings", jwtVerify, async (req, res) => {
       try {
-        const role = await userColl.findOne({ email: req.tokenEmail });
-        console.log(role);
-        const bookings = await bookingColl.find().toArray();
-        res.send(bookings);
+        const { role } = await userColl.findOne({ email: req.tokenEmail });
+        if (role === "user") {
+          const bookings = await bookingColl
+            .find({ userEmail: req.tokenEmail })
+            .toArray();
+          return res.send(bookings);
+        } else if (role === "admin") {
+          console.log(req.tokenEmail);
+          const bookings = await bookingColl.find().toArray();
+          return res.send(bookings);
+        }
       } catch (error) {
         console.error(error);
         res.status(500).send("internal server Error");
