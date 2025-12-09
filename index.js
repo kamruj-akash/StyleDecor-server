@@ -5,6 +5,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 require("dotenv").config();
 var admin = require("firebase-admin");
+const stripe = require("stripe")(`${process.env.STRIPE_SECRET_KEY}`);
 const { useCallback } = require("react");
 
 const decoded = Buffer.from(process.env.firebaseAdminSDK, "base64").toString(
@@ -239,6 +240,96 @@ async function run() {
       }
     });
 
+    // payment collection && apis
+    const paymentColl = styleDecorDB.collection("payments");
+    app.post("/checkout-session", async (req, res) => {
+      try {
+        const { service_name, bookingId, cost, userEmail } = req.body;
+        const session = await stripe.checkout.sessions.create({
+          line_items: [
+            {
+              price_data: {
+                currency: "BDT",
+                product_data: {
+                  name: service_name,
+                },
+                unit_amount: Number(cost) * 100,
+              },
+              quantity: 1,
+            },
+          ],
+          customer_email: userEmail,
+          mode: "payment",
+          metadata: {
+            service_name,
+            bookingId,
+            userEmail,
+          },
+          success_url: `${process.env.baseUrl}/dashboard/booking-confirmed?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.baseUrl}/dashboard/payment-canceled`,
+        });
+        res.send(session);
+      } catch (error) {
+        res.status(500).send("internal server Error");
+      }
+    });
+    app.post("/payment-success", jwtVerify, async (req, res) => {
+      try {
+        const { session_id } = req.query;
+        const session = await stripe.checkout.sessions.retrieve(session_id);
+        if (session) {
+          const paymentInfo = {
+            service_name: session.metadata.service_name,
+            bookingId: session.metadata.bookingId,
+            userEmail: session.metadata.userEmail,
+            transactionId: session.payment_intent,
+            cost: session.amount_total,
+            createdAt,
+          };
+          res.send(paymentInfo);
+
+          const isDuplicatePayment = await paymentColl.findOne({
+            bookingId: paymentInfo.bookingId,
+          });
+
+          if (!isDuplicatePayment) {
+            await bookingColl.updateOne(
+              { bookingId: paymentInfo.bookingId },
+              {
+                $set: { status: "pending", updatedAt },
+              }
+            );
+            await paymentColl.insertOne(paymentInfo);
+            return;
+          } else return;
+        } else {
+          return res.send({
+            message: "Payment issue, please contact with support!",
+          });
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+
+    app.get("/payments", jwtVerify, async (req, res) => {
+      try {
+        const isAdmin = await userColl.findOne({ email: req.tokenEmail });
+        if (isAdmin.role === "admin") {
+          const payments = await paymentColl.find().toArray();
+          res.send(payments);
+        } else {
+          const payments = await paymentColl
+            .find({ userEmail: req.tokenEmail })
+            .toArray();
+          res.send(payments);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
     //
   } finally {
   }
