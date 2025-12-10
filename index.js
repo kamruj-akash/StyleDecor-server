@@ -6,7 +6,6 @@ const port = process.env.PORT || 3000;
 require("dotenv").config();
 var admin = require("firebase-admin");
 const stripe = require("stripe")(`${process.env.STRIPE_SECRET_KEY}`);
-const { useCallback } = require("react");
 
 const decoded = Buffer.from(process.env.firebaseAdminSDK, "base64").toString(
   "utf8"
@@ -221,6 +220,51 @@ async function run() {
         res.status(500).send("internal server Error");
       }
     });
+    app.patch("/booking/:id", jwtVerify, async (req, res) => {
+      try {
+        const { role } = await userColl.findOne({ email: req.tokenEmail });
+        if (role === "user") {
+          const updateData = {
+            serviceDate: req.body.serviceDate,
+            location: req.body.location,
+            updatedAt,
+          };
+          console.log(updateData);
+          const booking = await bookingColl.updateOne(
+            {
+              _id: new ObjectId(req.params.id),
+            },
+            { $set: updateData }
+          );
+          return res.send(booking);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+    app.patch("/booking-cancel/:id", jwtVerify, async (req, res) => {
+      try {
+        const { role } = await userColl.findOne({ email: req.tokenEmail });
+        if (role === "user") {
+          const updateData = {
+            status: "canceled",
+            updatedAt,
+          };
+          console.log(updateData);
+          const booking = await bookingColl.updateOne(
+            {
+              _id: new ObjectId(req.params.id),
+            },
+            { $set: updateData }
+          );
+          return res.send(booking);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
     app.get("/bookings", jwtVerify, async (req, res) => {
       try {
         const { role } = await userColl.findOne({ email: req.tokenEmail });
@@ -249,7 +293,7 @@ async function run() {
           line_items: [
             {
               price_data: {
-                currency: "BDT",
+                currency: "USD",
                 product_data: {
                   name: service_name,
                 },
@@ -296,7 +340,7 @@ async function run() {
             await bookingColl.updateOne(
               { bookingId: paymentInfo.bookingId },
               {
-                $set: { status: "pending", updatedAt },
+                $set: { status: "pending", paymentStatus: "paid", updatedAt },
               }
             );
             await paymentColl.insertOne(paymentInfo);
