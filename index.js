@@ -97,7 +97,17 @@ async function run() {
         res.status(500).send("internal server Error");
       }
     });
-
+    app.patch("/update-user", jwtVerify, async (req, res) => {
+      const updateUserInfo = {
+        ...req.body,
+        updatedAt,
+      };
+      const update = await userColl.updateOne(
+        { email: req.tokenEmail },
+        { $set: updateUserInfo }
+      );
+      res.send(update);
+    });
     app.get("/users", jwtVerify, async (req, res) => {
       const isAdmin = await userColl.findOne({ email: req.tokenEmail });
 
@@ -120,6 +130,15 @@ async function run() {
           { $set: { lastLoginAt } }
         );
         res.send(updateLogin);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+    app.get("/users/me", jwtVerify, async (req, res) => {
+      try {
+        const me = await userColl.findOne({ email: req.tokenEmail });
+        res.send(me);
       } catch (error) {
         console.error(error);
         res.status(500).send("internal server Error");
