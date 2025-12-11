@@ -399,13 +399,12 @@ async function run() {
 }
 run().catch(console.dir);
 
-app.all(/.*/, (req, res) => {
-  res.status(404).json({ status: 404, message: "invalid API call!" });
-});
-
 app.get("/", (req, res) => {
-  res.send("api working fine!");
+  res.send({ message: "api working fine!" });
 });
 app.listen(port, () => {
   console.log(`app running on: ${port}`);
+});
+app.all(/.*/, (req, res) => {
+  res.status(404).json({ status: 404, message: "invalid API call!" });
 });
