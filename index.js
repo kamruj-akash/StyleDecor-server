@@ -399,8 +399,8 @@ async function run() {
 }
 run().catch(console.dir);
 
-app.use((req, res) => {
-  res.status(404).json({ message: "API Not Found" });
+app.all(/.*/, (req, res) => {
+  res.status(404).json({ status: 404, message: "invalid API call!" });
 });
 
 app.get("/", (req, res) => {
