@@ -263,6 +263,15 @@ async function run() {
             { $set: updateData }
           );
           return res.send(booking);
+        } else if (role === "decorator") {
+          const status = req.body;
+          const updateStatus = await bookingColl.updateOne(
+            {
+              _id: new ObjectId(req.params.id),
+            },
+            { $set: status }
+          );
+          res.send(updateStatus);
         }
       } catch (error) {
         console.error(error);
@@ -293,24 +302,42 @@ async function run() {
     app.get("/bookings", jwtVerify, async (req, res) => {
       try {
         const query = {};
+
         if (req.query.status) {
           query.status = req.query.status;
+        } else {
+          query.status = { $ne: "Completed" };
         }
+
         const { role } = await userColl.findOne({ email: req.tokenEmail });
+
         if (role === "user") {
           const bookings = await bookingColl
-            .find({ userEmail: req.tokenEmail })
+            .find({
+              userEmail: req.tokenEmail,
+              status: query.status,
+            })
             .toArray();
+
           return res.send(bookings);
-        } else if (role === "admin") {
+        }
+
+        if (role === "admin") {
           const bookings = await bookingColl.find(query).toArray();
           return res.send(bookings);
+        }
+
+        if (role === "decorator") {
+          query.decoratorEmail = req.tokenEmail;
+          const decBooking = await bookingColl.find(query).toArray();
+          return res.send(decBooking);
         }
       } catch (error) {
         console.error(error);
         res.status(500).send("internal server Error");
       }
     });
+
     app.patch("/booking-assigned/:id", jwtVerify, async (req, res) => {
       try {
         const id = req.params.id;
@@ -325,7 +352,7 @@ async function run() {
           );
           const result = await bookingColl.updateOne(
             { _id: new ObjectId(id) },
-            { $set: { ...updateData, status: "assigned" } }
+            { $set: { ...updateData, status: "assigned", updatedAt } }
           );
           res.send(result);
         } else {
@@ -334,6 +361,13 @@ async function run() {
       } catch (error) {
         console.log(error);
         res.status(500).send({ message: "Server error" });
+      }
+    });
+    app.get("/booking/:id", jwtVerify, async (req, res) => {
+      try {
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
       }
     });
 
@@ -451,6 +485,19 @@ async function run() {
         if (isAdmin.role === "admin") {
           const find = await userColl.find({ role: "decorator" }).toArray();
           res.send(find);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+    app.patch("/make-available", jwtVerify, async (req, res) => {
+      try {
+        const decorator = await userColl.findOne({ email: req.tokenEmail });
+        if (decorator.role === "decorator") {
+          const result = await userColl.updateOne(decorator, {
+            $set: { status: "available" },
+          });
         }
       } catch (error) {
         console.error(error);
