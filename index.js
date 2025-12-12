@@ -110,11 +110,19 @@ async function run() {
     });
     app.get("/users", jwtVerify, async (req, res) => {
       const isAdmin = await userColl.findOne({ email: req.tokenEmail });
-
+      const query = { role: req.query.role };
+      if (req.query.status) {
+        query.status = req.query.status;
+      }
       if (isAdmin.role === "admin") {
         try {
-          const users = await userColl.find().toArray();
-          res.send(users);
+          if (req.query.role) {
+            const users = await userColl.find(query).toArray();
+            res.send(users);
+          } else {
+            const users = await userColl.find().toArray();
+            res.send(users);
+          }
         } catch (error) {
           console.error(error);
           res.status(500).send("internal server Error");
@@ -202,7 +210,7 @@ async function run() {
 
     app.get("/services", async (req, res) => {
       try {
-        const services = await serviceColl.find().toArray();
+        const services = await serviceColl.find({ available: true }).toArray();
         res.send(services);
       } catch (error) {
         console.error(error);
@@ -248,7 +256,6 @@ async function run() {
             location: req.body.location,
             updatedAt,
           };
-          console.log(updateData);
           const booking = await bookingColl.updateOne(
             {
               _id: new ObjectId(req.params.id),
@@ -270,7 +277,6 @@ async function run() {
             status: "canceled",
             updatedAt,
           };
-          console.log(updateData);
           const booking = await bookingColl.updateOne(
             {
               _id: new ObjectId(req.params.id),
@@ -286,6 +292,10 @@ async function run() {
     });
     app.get("/bookings", jwtVerify, async (req, res) => {
       try {
+        const query = {};
+        if (req.query.status) {
+          query.status = req.query.status;
+        }
         const { role } = await userColl.findOne({ email: req.tokenEmail });
         if (role === "user") {
           const bookings = await bookingColl
@@ -293,13 +303,37 @@ async function run() {
             .toArray();
           return res.send(bookings);
         } else if (role === "admin") {
-          console.log(req.tokenEmail);
-          const bookings = await bookingColl.find().toArray();
+          const bookings = await bookingColl.find(query).toArray();
           return res.send(bookings);
         }
       } catch (error) {
         console.error(error);
         res.status(500).send("internal server Error");
+      }
+    });
+    app.patch("/booking-assigned/:id", jwtVerify, async (req, res) => {
+      try {
+        const id = req.params.id;
+        const isAdmin = await userColl.findOne({ email: req.tokenEmail });
+        if (isAdmin.role === "admin") {
+          const updateData = req.body;
+          const decorator = await userColl.updateOne(
+            {
+              email: req.body.decoratorEmail,
+            },
+            { $set: { status: "working" } }
+          );
+          const result = await bookingColl.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: { ...updateData, status: "assigned" } }
+          );
+          res.send(result);
+        } else {
+          return res.status(403).send({ message: "Unauthorized" });
+        }
+      } catch (error) {
+        console.log(error);
+        res.status(500).send({ message: "Server error" });
       }
     });
 
@@ -375,7 +409,6 @@ async function run() {
         res.status(500).send("internal server Error");
       }
     });
-
     app.get("/payments", jwtVerify, async (req, res) => {
       try {
         const isAdmin = await userColl.findOne({ email: req.tokenEmail });
@@ -393,6 +426,38 @@ async function run() {
         res.status(500).send("internal server Error");
       }
     });
+
+    // decorators & APIS
+    app.patch("/add-decorator", jwtVerify, async (req, res) => {
+      try {
+        const isAdmin = await userColl.findOne({ email: req.tokenEmail });
+        if (isAdmin.role === "admin") {
+          const update = await userColl.updateOne(
+            { _id: new ObjectId(req.body.userId) },
+            { $set: { role: "decorator" } }
+          );
+          res.send(update);
+        } else {
+          res.status(401);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+    app.get("/decorators", jwtVerify, async (req, res) => {
+      try {
+        const isAdmin = await userColl.findOne({ email: req.tokenEmail });
+        if (isAdmin.role === "admin") {
+          const find = await userColl.find({ role: "decorator" }).toArray();
+          res.send(find);
+        }
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+
     //
   } finally {
   }
