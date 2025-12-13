@@ -20,8 +20,14 @@ app.use(cors());
 app.use(express.json());
 
 // mongodb://localhost:27017/
-const uri = "mongodb://localhost:27017/";
 
+const uri = `mongodb+srv://${encodeURIComponent(
+  process.env.mongoDbUser
+)}:${encodeURIComponent(
+  process.env.mongoDbPass
+)}@cluster0.2f017tz.mongodb.net/?appName=Cluster0`;
+
+console.log(uri);
 // iso time
 const createdAt = new Date().toISOString();
 const updatedAt = new Date().toISOString();
@@ -118,7 +124,7 @@ async function run() {
         try {
           if (req.query.role) {
             const users = await userColl.find(query).toArray();
-            res.send(users);
+            return res.send(users);
           } else {
             const users = await userColl.find().toArray();
             res.send(users);
