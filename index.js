@@ -264,14 +264,21 @@ async function run() {
           );
           return res.send(booking);
         } else if (role === "decorator") {
-          const status = req.body;
-          const updateStatus = await bookingColl.updateOne(
-            {
-              _id: new ObjectId(req.params.id),
-            },
-            { $set: status }
+          const { status } = req.body;
+
+          if (status === "Completed") {
+            await userColl.updateOne(
+              { email: req.tokenEmail },
+              { $set: { status: "available" } }
+            );
+          }
+
+          const result = await bookingColl.updateOne(
+            { _id: new ObjectId(req.params.id) },
+            { $set: { status } }
           );
-          res.send(updateStatus);
+
+          res.send(result);
         }
       } catch (error) {
         console.error(error);
@@ -301,43 +308,33 @@ async function run() {
     });
     app.get("/bookings", jwtVerify, async (req, res) => {
       try {
-        const query = {};
-
-        if (req.query.status) {
-          query.status = req.query.status;
-        } else {
-          query.status = { $ne: "Completed" };
-        }
-
+        const { status } = req.query;
         const { role } = await userColl.findOne({ email: req.tokenEmail });
 
-        if (role === "user") {
-          const bookings = await bookingColl
-            .find({
-              userEmail: req.tokenEmail,
-              status: query.status,
-            })
-            .toArray();
+        let query = {};
 
-          return res.send(bookings);
+        if (role === "user") {
+          query.userEmail = req.tokenEmail;
+          if (status) query.status = status;
         }
 
         if (role === "admin") {
-          const bookings = await bookingColl.find(query).toArray();
-          return res.send(bookings);
+          if (status) query.status = status;
         }
 
         if (role === "decorator") {
           query.decoratorEmail = req.tokenEmail;
-          const decBooking = await bookingColl.find(query).toArray();
-          return res.send(decBooking);
+          if (status) {
+            query.status = status;
+          }
         }
+        const bookings = await bookingColl.find(query).toArray();
+        res.send(bookings);
       } catch (error) {
         console.error(error);
-        res.status(500).send("internal server Error");
+        res.status(500).send("Internal Server Error");
       }
     });
-
     app.patch("/booking-assigned/:id", jwtVerify, async (req, res) => {
       try {
         const id = req.params.id;
