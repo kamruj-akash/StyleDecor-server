@@ -507,6 +507,28 @@ async function run() {
         res.status(500).send("internal server Error");
       }
     });
+    // get 3 decorator && 4 service
+    app.get("/getDecorator", async (req, res) => {
+      try {
+        const result = await userColl
+          .find({ role: "decorator" })
+          .limit(3)
+          .toArray();
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
+    app.get("/getService", async (req, res) => {
+      try {
+        const result = await serviceColl.find().limit(4).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("internal server Error");
+      }
+    });
 
     //
   } finally {
