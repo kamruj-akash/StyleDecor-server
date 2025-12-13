@@ -471,7 +471,7 @@ async function run() {
         if (isAdmin.role === "admin") {
           const update = await userColl.updateOne(
             { _id: new ObjectId(req.body.userId) },
-            { $set: { role: "decorator" } }
+            { $set: { role: "decorator", status: "available" } }
           );
           res.send(update);
         } else {
